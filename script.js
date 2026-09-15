@@ -1,292 +1,358 @@
 // ============================================
-// CONFIGURATION
+// NO-API VOICE ASSISTANT
+// All commands handled locally in your browser
 // ============================================
-const GEMINI_API_KEY = 'AIzaSyDDT4uSLYdqGi42N4bzi3d9yuI2YTOU4yc';
-const GEMINI_MODEL = 'gemini-2.0-flash'; // ✅ FIX: 2.0-flash has wider free access than 2.5
 
-// ============================================
-// DOM ELEMENTS
-// ============================================
 const orb = document.getElementById('orb');
 const orbWrapper = document.getElementById('orb-wrapper');
 const statusLabel = document.getElementById('status');
 const userTextEl = document.getElementById('user-text');
 const aiTextEl = document.getElementById('ai-text');
 
-// ============================================
-// STATE
-// ============================================
 let state = 'idle';
 let recognition = null;
 let synth = window.speechSynthesis;
-let voicesReady = false;
+let voices = [];
+
+// ---------- Log helper ----------
+function log(msg) {
+    console.log(msg);
+    statusLabel.textContent = msg;
+}
+
+// ---------- Load voices ----------
+function loadVoices() {
+    voices = synth.getVoices();
+    if (voices.length === 0) {
+        synth.onvoiceschanged = () => { voices = synth.getVoices(); };
+    }
+}
+loadVoices();
 
 // ============================================
-// VOICES — load them properly (this was a big cause of silence)
+// 💬 COMMAND DATABASE
+// Each entry: { match: [keywords], run: function }
+// If ANY keyword appears in what you said, it runs
 // ============================================
-function loadVoices() {
-    return new Promise((resolve) => {
-        const voices = synth.getVoices();
-        if (voices.length > 0) {
-            voicesReady = true;
-            resolve(voices);
-            return;
+const COMMANDS = [
+    // --- Websites ---
+    {
+        match: ['open youtube', 'youtube kholo', 'launch youtube'],
+        run: () => {
+            reply('Opening YouTube');
+            open('https://youtube.com');
         }
-        // Voices load async in Chrome — wait for them
-        synth.onvoiceschanged = () => {
-            voicesReady = true;
-            resolve(synth.getVoices());
-        };
-        // Fallback timeout
-        setTimeout(() => resolve(synth.getVoices()), 1500);
-    });
+    },
+    {
+        match: ['open google', 'google kholo'],
+        run: () => {
+            reply('Opening Google');
+            open('https://google.com');
+        }
+    },
+    {
+        match: ['open github', 'github kholo'],
+        run: () => {
+            reply('Opening GitHub');
+            open('https://github.com');
+        }
+    },
+    {
+        match: ['open whatsapp', 'whatsapp kholo'],
+        run: () => {
+            reply('Opening WhatsApp');
+            open('https://web.whatsapp.com');
+        }
+    },
+    {
+        match: ['open gmail', 'open email', 'gmail kholo'],
+        run: () => {
+            reply('Opening Gmail');
+            open('https://mail.google.com');
+        }
+    },
+    {
+        match: ['open instagram', 'instagram kholo'],
+        run: () => {
+            reply('Opening Instagram');
+            open('https://instagram.com');
+        }
+    },
+    {
+        match: ['open maps', 'open google maps'],
+        run: () => {
+            reply('Opening Maps');
+            open('https://maps.google.com');
+        }
+    },
+    {
+        match: ['open chatgpt', 'open chat gpt'],
+        run: () => {
+            reply('Opening ChatGPT');
+            open('https://chat.openai.com');
+        }
+    },
+
+    // --- Time & Date ---
+    {
+        match: ['what time', 'time now', 'current time', 'time kya'],
+        run: () => {
+            const t = new Date().toLocaleTimeString('en-IN', {
+                hour: '2-digit', minute: '2-digit'
+            });
+            reply('The time is ' + t);
+        }
+    },
+    {
+        match: ['what date', 'today date', "today's date", 'date kya'],
+        run: () => {
+            const d = new Date().toLocaleDateString('en-IN', {
+                weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'
+            });
+            reply('Today is ' + d);
+        }
+    },
+
+    // --- Greetings ---
+    {
+        match: ['hello', 'hi ', 'hey ', 'namaste'],
+        run: () => {
+            const opts = ['Hello! How can I help?', 'Hi there!', 'Hey! What can I do?'];
+            reply(opts[Math.floor(Math.random() * opts.length)]);
+        }
+    },
+    {
+        match: ['good morning'],
+        run: () => reply('Good morning! Hope you have a great day.')
+    },
+    {
+        match: ['good night'],
+        run: () => reply('Good night! Sleep well.')
+    },
+    {
+        match: ['how are you', 'kaise ho'],
+        run: () => reply("I'm doing great, thank you for asking!")
+    },
+    {
+        match: ['your name', 'who are you', 'tum kaun'],
+        run: () => reply('I am your personal AI assistant.')
+    },
+    {
+        match: ['thank you', 'thanks', 'shukriya'],
+        run: () => reply('You are welcome!')
+    },
+    {
+        match: ['bye', 'goodbye'],
+        run: () => reply('Goodbye! See you soon.')
+    },
+
+    // --- Search ---
+    {
+        match: ['search for', 'google search', 'search karo'],
+        run: (said) => {
+            const q = said.replace(/.*(search for|google search|search karo)/i, '').trim();
+            if (!q) return reply('What should I search for?');
+            reply('Searching for ' + q);
+            open('https://www.google.com/search?q=' + encodeURIComponent(q));
+        }
+    },
+    {
+        match: ['play on youtube', 'youtube pe'],
+        run: (said) => {
+            const q = said.replace(/.*(play on youtube|youtube pe)/i, '').trim();
+            if (!q) return reply('What should I play?');
+            reply('Playing ' + q + ' on YouTube');
+            open('https://www.youtube.com/results?search_query=' + encodeURIComponent(q));
+        }
+    },
+    {
+        match: ['wikipedia', 'who is', 'what is'],
+        run: (said) => {
+            const q = said.replace(/.*(wikipedia|who is|what is)/i, '').trim();
+            if (!q) return reply('What should I look up?');
+            reply('Looking up ' + q);
+            open('https://en.wikipedia.org/wiki/Special:Search?search=' + encodeURIComponent(q));
+        }
+    },
+
+    // --- Math ---
+    {
+        match: ['calculate', 'what is', 'plus', 'minus', 'times', 'divided by'],
+        run: (said) => {
+            const result = tryMath(said);
+            if (result !== null) reply('The answer is ' + result);
+            else reply("Sorry, I couldn't calculate that.");
+        }
+    },
+
+    // --- Utility ---
+    {
+        match: ['stop', 'be quiet', 'silence', 'chup'],
+        run: () => {
+            synth.cancel();
+            setState('idle');
+        }
+    },
+    {
+        match: ['clear', 'reset'],
+        run: () => {
+            userTextEl.textContent = '';
+            aiTextEl.textContent = '';
+            reply('Cleared.');
+        }
+    }
+];
+
+// ============================================
+// 🧮 Simple math parser
+// ============================================
+function tryMath(text) {
+    const t = text.toLowerCase()
+        .replace(/what is|calculate|equals?/g, '')
+        .replace(/plus/g, '+')
+        .replace(/minus/g, '-')
+        .replace(/times|multiplied by/g, '*')
+        .replace(/divided by/g, '/')
+        .replace(/[^0-9+\-*/.() ]/g, '')
+        .trim();
+    if (!/[0-9]/.test(t) || !/[+\-*/]/.test(t)) return null;
+    try {
+        const val = Function('"use strict"; return (' + t + ')')();
+        return typeof val === 'number' && isFinite(val) ? val : null;
+    } catch { return null; }
 }
 
 // ============================================
-// SPEECH RECOGNITION
+// 🚀 Command handler
 // ============================================
-function initSpeechRecognition() {
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+function handleCommand(said) {
+    const lower = ' ' + said.toLowerCase() + ' ';
 
-    if (!SpeechRecognition) {
-        statusLabel.textContent = "Use Chrome — speech not supported here.";
-        return null;
+    for (const cmd of COMMANDS) {
+        for (const kw of cmd.match) {
+            if (lower.includes(kw.toLowerCase())) {
+                try { cmd.run(said); }
+                catch (e) { console.error(e); reply("Something went wrong."); }
+                return true;
+            }
+        }
     }
+    return false;
+}
 
-    const rec = new SpeechRecognition();
+// ============================================
+// 💬 Reply (text + voice)
+// ============================================
+function reply(text) {
+    aiTextEl.textContent = text;
+    speak(text);
+}
+
+function speak(text) {
+    synth.cancel();
+    const clean = text.replace(/[*_`#>]/g, '').replace(/[\u{1F300}-\u{1FAFF}]/gu, '').trim();
+
+    const u = new SpeechSynthesisUtterance(clean);
+    const v = voices.find(x => x.name.includes('Google US English'))
+           || voices.find(x => x.lang === 'en-US')
+           || voices.find(x => x.lang.startsWith('en'));
+    if (v) u.voice = v;
+    u.rate = 1; u.pitch = 1; u.volume = 1;
+
+    u.onstart = () => setState('speaking');
+    u.onend   = () => setState('idle');
+    u.onerror = () => setState('idle');
+
+    setTimeout(() => synth.speak(u), 100);
+}
+
+// ============================================
+// 🌐 Open URL (with popup-blocker fallback)
+// ============================================
+function open(url) {
+    // Try new tab. If blocked, navigate current tab.
+    const w = window.open(url, '_blank');
+    if (!w || w.closed || typeof w.closed === 'undefined') {
+        // Popup blocked — fall back to same-tab navigation
+        setTimeout(() => { window.location.href = url; }, 800);
+    }
+}
+
+// ============================================
+// 🎤 Speech recognition
+// ============================================
+function initRec() {
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SR) { log('Use Chrome — speech not supported'); return null; }
+
+    const rec = new SR();
     rec.continuous = false;
     rec.interimResults = false;
     rec.lang = 'en-US';
-    rec.maxAlternatives = 1;
 
     rec.onstart = () => setState('listening');
 
-    rec.onresult = (event) => {
-        const transcript = event.results[0][0].transcript;
-        userTextEl.textContent = `You: "${transcript}"`;
+    rec.onresult = (e) => {
+        const t = e.results[0][0].transcript;
+        userTextEl.textContent = `You: "${t}"`;
         setState('thinking');
-        sendToGemini(transcript);
+
+        // Small delay so the UI shows "thinking"
+        setTimeout(() => {
+            const handled = handleCommand(t);
+            if (!handled) {
+                reply("Sorry, I don't know that command yet.");
+            }
+        }, 200);
     };
 
-    rec.onerror = (event) => {
-        console.warn('Speech error:', event.error);
-
-        // ✅ FIX: these are harmless, don't show as errors
-        if (event.error === 'aborted' || event.error === 'no-speech') {
-            setState('idle');
-            return;
-        }
-        if (event.error === 'not-allowed') {
-            statusLabel.textContent = "Mic blocked. Allow access in browser.";
-            setState('idle');
-            return;
-        }
-        statusLabel.textContent = "Mic error: " + event.error;
+    rec.onerror = (e) => {
+        console.warn('Rec error:', e.error);
+        if (e.error === 'aborted' || e.error === 'no-speech') { setState('idle'); return; }
+        if (e.error === 'not-allowed') { log('Mic blocked — allow in browser'); setState('idle'); return; }
+        log('Mic: ' + e.error);
         setState('idle');
     };
 
-    rec.onend = () => {
-        if (state === 'listening') setState('idle');
-    };
-
+    rec.onend = () => { if (state === 'listening') setState('idle'); };
     return rec;
 }
 
 // ============================================
-// GEMINI API
+// 🎛 State
 // ============================================
-async function sendToGemini(prompt) {
-    if (!GEMINI_API_KEY || GEMINI_API_KEY === 'PASTE_YOUR_API_KEY_HERE') {
-        aiTextEl.textContent = "API key missing in script.js";
-        setState('idle');
-        return;
-    }
-
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_API_KEY}`;
-
-    const requestBody = {
-        contents: [{
-            parts: [{
-                text: "You are a helpful, friendly voice assistant. Reply in 1-2 short sentences because your answer is spoken aloud. User said: " + prompt
-            }]
-        }]
-    };
-
-    try {
-        aiTextEl.textContent = "Thinking...";
-
-        const response = await fetch(url, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(requestBody)
-        });
-
-        const data = await response.json();
-
-        // ✅ FIX: surface the real API error so you can see what's wrong
-        if (!response.ok) {
-            console.error('API error:', data);
-            const msg = data?.error?.message || `HTTP ${response.status}`;
-            aiTextEl.textContent = "API error: " + msg;
-            setState('idle');
-            return;
-        }
-
-        // ✅ FIX: safe check — Google sometimes returns no candidates
-        const aiResponse = data?.candidates?.[0]?.content?.parts?.[0]?.text;
-        if (!aiResponse) {
-            console.error('Bad response shape:', data);
-            aiTextEl.textContent = "Empty reply from Gemini.";
-            setState('idle');
-            return;
-        }
-
-        aiTextEl.textContent = aiResponse;
-        speakResponse(aiResponse);
-
-    } catch (error) {
-        console.error('Fetch failed:', error);
-        aiTextEl.textContent = "Network error: " + error.message;
-        setState('idle');
-    }
+function setState(s) {
+    state = s;
+    orbWrapper.className = 'orb-wrapper ' + s;
+    orb.className = 'orb ' + s;
+    if (s === 'idle')      log('Tap to speak');
+    if (s === 'listening') log('Listening...');
+    if (s === 'thinking')  log('Thinking...');
+    if (s === 'speaking')  log('Speaking...');
 }
 
 // ============================================
-// TEXT-TO-SPEECH  ✅ FIX: rewritten to actually speak
+// 👆 Interaction
 // ============================================
-async function speakResponse(text) {
-    // Chrome bug: if synthesis is stuck, cancel and resume clears it
-    synth.cancel();
+function tapOrb() {
+    if (state === 'listening') { try { recognition.abort(); } catch(e){} setState('idle'); return; }
+    if (state === 'speaking')  { synth.cancel(); setState('idle'); return; }
+    if (state === 'thinking')  return;
 
-    if (!voicesReady) await loadVoices();
-
-    // Strip markdown/emojis so it reads cleanly
-    const clean = text
-        .replace(/[*_`#>]/g, '')
-        .replace(/\[.*?\]\(.*?\)/g, '')
-        .replace(/[\u{1F300}-\u{1FAFF}]/gu, '')
-        .trim();
-
-    const utterance = new SpeechSynthesisUtterance(clean);
-
-    // Pick a voice
-    const voices = synth.getVoices();
-    const preferred =
-        voices.find(v => v.name.includes('Google US English')) ||
-        voices.find(v => v.lang === 'en-US' && v.name.toLowerCase().includes('female')) ||
-        voices.find(v => v.lang === 'en-US') ||
-        voices.find(v => v.lang.startsWith('en'));
-    if (preferred) utterance.voice = preferred;
-
-    utterance.rate = 1.0;
-    utterance.pitch = 1.0;
-    utterance.volume = 1.0;
-    utterance.lang = 'en-US';
-
-    utterance.onstart = () => {
-        console.log('🔊 Speaking started');
-        setState('speaking');
-    };
-    utterance.onend = () => {
-        console.log('🔊 Speaking ended');
-        setState('idle');
-    };
-    utterance.onerror = (e) => {
-        console.error('🔊 Speech error:', e.error);
-        setState('idle');
-    };
-
-    // ✅ FIX: wait a tick — Chrome sometimes silently drops speech if called too fast
-    setTimeout(() => {
-        synth.speak(utterance);
-        // Chrome bug: long text gets cut at 15s. This "keep alive" workaround:
-        const keepAlive = setInterval(() => {
-            if (!synth.speaking) {
-                clearInterval(keepAlive);
-                return;
-            }
-            synth.pause();
-            synth.resume();
-        }, 10000);
-    }, 100);
-}
-
-// ============================================
-// STATE
-// ============================================
-function setState(newState) {
-    state = newState;
-    orbWrapper.className = 'orb-wrapper ' + newState;
-    orb.className = 'orb ' + newState;
-
-    switch (newState) {
-        case 'idle':      statusLabel.textContent = 'Tap to speak'; break;
-        case 'listening': statusLabel.textContent = 'Listening...'; break;
-        case 'thinking':  statusLabel.textContent = 'Thinking...'; break;
-        case 'speaking':  statusLabel.textContent = 'Speaking...'; break;
-    }
-}
-
-// ============================================
-// INTERACTION
-// ============================================
-function handleOrbClick() {
-    // ✅ FIX: hard-stop any prior recognition before starting new one
-    if (recognition && state === 'listening') {
-        try { recognition.abort(); } catch(e){}
-        setState('idle');
-        return;
-    }
-
-    if (state === 'speaking') {
-        synth.cancel();
-        setState('idle');
-        return;
-    }
-
-    if (state === 'thinking') return;
-
-    startListening();
-}
-
-function startListening() {
-    if (!recognition) recognition = initSpeechRecognition();
+    if (!recognition) recognition = initRec();
     if (!recognition) return;
 
     userTextEl.textContent = '';
     aiTextEl.textContent = '';
-
-    try {
-        recognition.start();
-    } catch (e) {
-        // Chrome throws if already started — abort & restart
+    try { recognition.start(); } catch(e) {
         try { recognition.abort(); } catch(_){}
-        setTimeout(() => {
-            try { recognition.start(); } catch(_){}
-        }, 200);
+        setTimeout(() => { try { recognition.start(); } catch(_){} }, 250);
     }
 }
 
 // ============================================
-// INIT
+// 🚀 Init
 // ============================================
-function init() {
-    recognition = initSpeechRecognition();
-    loadVoices();
-
-    // ✅ FIX: prime speechSynthesis on first tap (Chrome blocks until user gesture)
-    document.body.addEventListener('click', () => {
-        if (!synth.speaking && synth.paused) synth.resume();
-    }, { once: true });
-
-    orb.addEventListener('click', handleOrbClick);
-    setState('idle');
-
-    console.log('✅ Assistant ready');
-}
-
-if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', init);
-} else {
-    init();
-}
+orb.addEventListener('click', tapOrb);
+setState('idle');
+console.log('✅ No-API assistant ready');
