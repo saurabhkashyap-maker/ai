@@ -2,61 +2,48 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-<meta http-equiv="Pragma" content="no-cache">
-<meta http-equiv="Expires" content="0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Kaira AI</title>
-<link rel="stylesheet" href="style.css?v=600">
+<link rel="stylesheet" href="style.css">
 </head>
 <body>
+  <div class="container">
+    <h1 class="title">Kaira AI</h1>
+    <div class="status-label" id="status">Tap to speak</div>
 
-<div class="container">
-
-  <h1 class="title">Kaira AI</h1>
-  <div class="status-label" id="status">Tap the orb to start</div>
-
-  <!-- Animated Orb -->
-  <div class="orb-wrapper" id="orb-wrapper">
-    <div class="pulse-ring"></div>
-    <div class="pulse-ring"></div>
-
-    <div class="orb" id="orb">
-      <div class="blob blob-1"></div>
-      <div class="blob blob-2"></div>
-      <div class="blob blob-3"></div>
-      <div class="equalizer">
-        <span></span><span></span><span></span><span></span><span></span>
+    <div class="orb-wrapper" id="orb-wrapper">
+      <div class="pulse-ring"></div>
+      <div class="pulse-ring"></div>
+      <div class="orb" id="orb">
+        <div class="blob blob-1"></div>
+        <div class="blob blob-2"></div>
+        <div class="blob blob-3"></div>
+        <div class="equalizer">
+          <span></span><span></span><span></span><span></span><span></span>
+        </div>
       </div>
+    </div>
+
+    <div class="text-input-row">
+      <input id="text-input" type="text" placeholder="Type a command...">
+      <button id="send-btn">Send</button>
+    </div>
+
+    <div class="transcript-container">
+      <p id="user-text"></p>
+      <p id="ai-text"></p>
+    </div>
+
+    <div class="chips">
+      <button class="chip" data-cmd="hello">Hello</button>
+      <button class="chip" data-cmd="what time is it">Time</button>
+      <button class="chip" data-cmd="open youtube">YouTube</button>
+      <button class="chip" data-cmd="open whatsapp">WhatsApp</button>
+      <button class="chip" data-cmd="open instagram">Instagram</button>
+      <button class="chip" data-cmd="who are you">Who are you?</button>
     </div>
   </div>
 
-  <!-- Text fallback -->
-  <div class="text-input-row">
-    <input id="text-input" type="text" placeholder="Ya yahan likho... (e.g. hello)">
-    <button id="send-btn">Send</button>
-  </div>
-
-  <!-- Conversation display -->
-  <div class="transcript-container">
-    <p id="user-text"></p>
-    <p id="ai-text"></p>
-  </div>
-
-  <!-- Quick command chips -->
-  <div class="chips">
-    <button class="chip" data-cmd="hello">Hello</button>
-    <button class="chip" data-cmd="what time is it">Time</button>
-    <button class="chip" data-cmd="what is the date">Date</button>
-    <button class="chip" data-cmd="open youtube">YouTube</button>
-    <button class="chip" data-cmd="open whatsapp">WhatsApp</button>
-    <button class="chip" data-cmd="open instagram">Instagram</button>
-    <button class="chip" data-cmd="open telegram">Telegram</button>
-    <button class="chip" data-cmd="who are you">Who are you?</button>
-  </div>
-
-</div>
-
-<script src="script.js?v=600"></script>
+  <script src="script.js"></script>
 </body>
 </html>
