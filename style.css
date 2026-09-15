@@ -1,0 +1,199 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    background-color: #0a0a0f;
+    color: #e0e0e0;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    overflow: hidden;
+}
+
+.container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 40px;
+    padding: 20px;
+    width: 100%;
+    max-width: 500px;
+}
+
+.status-label {
+    font-size: 1.1rem;
+    color: #8892b0;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    transition: color 0.3s;
+}
+
+/* Orb Wrapper & Pulse Rings */
+.orb-wrapper {
+    position: relative;
+    width: 280px;
+    height: 280px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.pulse-ring {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    border: 2px solid #64ffda;
+    opacity: 0;
+    transform: scale(0.8);
+    pointer-events: none;
+}
+
+/* Pulse animation only in listening state */
+.orb-wrapper.listening .pulse-ring {
+    animation: pulse 1.5s ease-out infinite;
+}
+.orb-wrapper.listening .pulse-ring:nth-child(2) {
+    animation-delay: 0.5s;
+}
+
+@keyframes pulse {
+    0% { transform: scale(0.8); opacity: 0.8; }
+    100% { transform: scale(1.5); opacity: 0; }
+}
+
+/* The Orb */
+.orb {
+    position: relative;
+    width: 200px;
+    height: 200px;
+    border-radius: 50%;
+    overflow: hidden;
+    cursor: pointer;
+    box-shadow: 0 0 60px rgba(100, 255, 218, 0.3);
+    transition: box-shadow 0.5s, transform 0.3s;
+    z-index: 10;
+}
+
+.orb:hover {
+    transform: scale(1.02);
+}
+
+/* Layered Blobs for Organic Look */
+.blob {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    filter: blur(20px);
+    mix-blend-mode: screen;
+    opacity: 0.9;
+}
+
+.blob-1 {
+    background: radial-gradient(circle, #64ffda 0%, transparent 70%);
+    animation: drift 6s ease-in-out infinite alternate;
+}
+
+.blob-2 {
+    background: radial-gradient(circle, #4a90d9 0%, transparent 70%);
+    animation: drift 7.5s ease-in-out infinite alternate-reverse;
+    animation-delay: -2s;
+}
+
+.blob-3 {
+    background: radial-gradient(circle, #b24bf3 0%, transparent 70%);
+    animation: drift 9s ease-in-out infinite alternate;
+    animation-delay: -4s;
+}
+
+@keyframes drift {
+    0% { transform: translate(-10%, -10%) scale(1); }
+    100% { transform: translate(10%, 10%) scale(1.2); }
+}
+
+/* Equalizer Bars (Visible while Speaking) */
+.equalizer {
+    position: absolute;
+    bottom: 20%;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    align-items: flex-end;
+    gap: 4px;
+    height: 40px;
+    opacity: 0;
+    transition: opacity 0.3s;
+}
+
+.orb.speaking .equalizer {
+    opacity: 1;
+}
+
+.equalizer span {
+    display: block;
+    width: 6px;
+    background: white;
+    border-radius: 3px;
+    animation: eq 0.5s ease-in-out infinite alternate;
+}
+
+.equalizer span:nth-child(1) { animation-delay: 0s; height: 10px; }
+.equalizer span:nth-child(2) { animation-delay: 0.1s; height: 20px; }
+.equalizer span:nth-child(3) { animation-delay: 0.2s; height: 30px; }
+.equalizer span:nth-child(4) { animation-delay: 0.1s; height: 20px; }
+.equalizer span:nth-child(5) { animation-delay: 0s; height: 10px; }
+
+@keyframes eq {
+    0% { height: 10px; }
+    100% { height: 35px; }
+}
+
+/* State-specific modifications */
+.orb-wrapper.thinking .orb {
+    animation: breathe 1.5s ease-in-out infinite;
+}
+
+@keyframes breathe {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.08); }
+}
+
+/* Transcript */
+.transcript-container {
+    width: 100%;
+    text-align: center;
+    min-height: 60px;
+}
+
+#user-text {
+    color: #64ffda;
+    font-size: 0.95rem;
+    margin-bottom: 8px;
+}
+
+#ai-text {
+    color: #ccd6f6;
+    font-size: 1.1rem;
+    font-weight: 500;
+}
+
+/* Responsive Adjustments */
+@media (max-width: 480px) {
+    .orb-wrapper {
+        width: 220px;
+        height: 220px;
+    }
+    .orb {
+        width: 160px;
+        height: 160px;
+    }
+    .container {
+        gap: 25px;
+    }
+}
