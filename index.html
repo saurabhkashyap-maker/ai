@@ -3,18 +3,18 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <title>My AI Assistant</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
     <div class="container">
+        <h1 class="title">AI Assistant</h1>
         <div class="status-label" id="status">Tap the orb to start</div>
-        
-        <!-- The Animated Orb -->
-        <div class="orb-wrapper">
+
+        <div class="orb-wrapper" id="orb-wrapper">
             <div class="pulse-ring"></div>
             <div class="pulse-ring"></div>
-            
             <div class="orb" id="orb">
                 <div class="blob blob-1"></div>
                 <div class="blob blob-2"></div>
@@ -25,13 +25,18 @@
             </div>
         </div>
 
-        <!-- Transcript Display -->
+        <!-- FALLBACK TEXT INPUT -->
+        <div class="text-input-row">
+            <input id="text-input" type="text" placeholder="Or type a command here...">
+            <button id="send-btn">Send</button>
+        </div>
+
         <div class="transcript-container">
             <p id="user-text"></p>
             <p id="ai-text"></p>
         </div>
     </div>
 
-    <script src="script.js"></script>
+    <script src="script.js?v=200"></script>
 </body>
 </html>
