@@ -1,8 +1,8 @@
 // ============================================
-// CONFIGURATION — CHANGE ONLY THIS LINE
+// CONFIGURATION
 // ============================================
-const GEMINI_API_KEY = 'AQ.Ab8RN6LkUkRohALc1oZpd31i3OI5kog5rKkvydLRZ9KT0Ztv2Q';
-const GEMINI_MODEL = 'gemini-2.5-flash';
+const GEMINI_API_KEY = 'AIzaSyDDT4uSLYdqGi42N4bzi3d9yuI2YTOU4yc';
+const GEMINI_MODEL = 'gemini-2.0-flash'; // ✅ FIX: 2.0-flash has wider free access than 2.5
 
 // ============================================
 // DOM ELEMENTS
@@ -19,15 +19,37 @@ const aiTextEl = document.getElementById('ai-text');
 let state = 'idle';
 let recognition = null;
 let synth = window.speechSynthesis;
+let voicesReady = false;
 
 // ============================================
-// SPEECH RECOGNITION SETUP
+// VOICES — load them properly (this was a big cause of silence)
+// ============================================
+function loadVoices() {
+    return new Promise((resolve) => {
+        const voices = synth.getVoices();
+        if (voices.length > 0) {
+            voicesReady = true;
+            resolve(voices);
+            return;
+        }
+        // Voices load async in Chrome — wait for them
+        synth.onvoiceschanged = () => {
+            voicesReady = true;
+            resolve(synth.getVoices());
+        };
+        // Fallback timeout
+        setTimeout(() => resolve(synth.getVoices()), 1500);
+    });
+}
+
+// ============================================
+// SPEECH RECOGNITION
 // ============================================
 function initSpeechRecognition() {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
 
     if (!SpeechRecognition) {
-        statusLabel.textContent = "Speech recognition not supported. Use Chrome.";
+        statusLabel.textContent = "Use Chrome — speech not supported here.";
         return null;
     }
 
@@ -35,6 +57,7 @@ function initSpeechRecognition() {
     rec.continuous = false;
     rec.interimResults = false;
     rec.lang = 'en-US';
+    rec.maxAlternatives = 1;
 
     rec.onstart = () => setState('listening');
 
@@ -46,14 +69,19 @@ function initSpeechRecognition() {
     };
 
     rec.onerror = (event) => {
-        console.error('Speech error:', event.error);
-        if (event.error === 'not-allowed') {
-            statusLabel.textContent = "Microphone blocked. Allow access.";
-        } else if (event.error === 'no-speech') {
-            statusLabel.textContent = "No speech detected. Try again.";
-        } else {
-            statusLabel.textContent = "Error: " + event.error;
+        console.warn('Speech error:', event.error);
+
+        // ✅ FIX: these are harmless, don't show as errors
+        if (event.error === 'aborted' || event.error === 'no-speech') {
+            setState('idle');
+            return;
         }
+        if (event.error === 'not-allowed') {
+            statusLabel.textContent = "Mic blocked. Allow access in browser.";
+            setState('idle');
+            return;
+        }
+        statusLabel.textContent = "Mic error: " + event.error;
         setState('idle');
     };
 
@@ -65,11 +93,11 @@ function initSpeechRecognition() {
 }
 
 // ============================================
-// GEMINI API CALL
+// GEMINI API
 // ============================================
 async function sendToGemini(prompt) {
     if (!GEMINI_API_KEY || GEMINI_API_KEY === 'PASTE_YOUR_API_KEY_HERE') {
-        aiTextEl.textContent = "API key not configured. Edit script.js.";
+        aiTextEl.textContent = "API key missing in script.js";
         setState('idle');
         return;
     }
@@ -79,63 +107,112 @@ async function sendToGemini(prompt) {
     const requestBody = {
         contents: [{
             parts: [{
-                text: "You are a helpful, friendly voice assistant. Give short, conversational answers (2-3 sentences max) since your reply will be spoken aloud. " + prompt
+                text: "You are a helpful, friendly voice assistant. Reply in 1-2 short sentences because your answer is spoken aloud. User said: " + prompt
             }]
         }]
     };
 
     try {
+        aiTextEl.textContent = "Thinking...";
+
         const response = await fetch(url, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(requestBody)
         });
 
+        const data = await response.json();
+
+        // ✅ FIX: surface the real API error so you can see what's wrong
         if (!response.ok) {
-            const errText = await response.text();
-            console.error('API Error:', errText);
-            throw new Error(`HTTP ${response.status}`);
+            console.error('API error:', data);
+            const msg = data?.error?.message || `HTTP ${response.status}`;
+            aiTextEl.textContent = "API error: " + msg;
+            setState('idle');
+            return;
         }
 
-        const data = await response.json();
-        const aiResponse = data.candidates[0].content.parts[0].text;
+        // ✅ FIX: safe check — Google sometimes returns no candidates
+        const aiResponse = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+        if (!aiResponse) {
+            console.error('Bad response shape:', data);
+            aiTextEl.textContent = "Empty reply from Gemini.";
+            setState('idle');
+            return;
+        }
 
         aiTextEl.textContent = aiResponse;
         speakResponse(aiResponse);
 
     } catch (error) {
-        console.error('Gemini error:', error);
-        aiTextEl.textContent = "Sorry, I couldn't reach Gemini. Check your API key.";
+        console.error('Fetch failed:', error);
+        aiTextEl.textContent = "Network error: " + error.message;
         setState('idle');
     }
 }
 
 // ============================================
-// TEXT-TO-SPEECH
+// TEXT-TO-SPEECH  ✅ FIX: rewritten to actually speak
 // ============================================
-function speakResponse(text) {
+async function speakResponse(text) {
+    // Chrome bug: if synthesis is stuck, cancel and resume clears it
     synth.cancel();
 
-    const utterance = new SpeechSynthesisUtterance(text);
+    if (!voicesReady) await loadVoices();
 
+    // Strip markdown/emojis so it reads cleanly
+    const clean = text
+        .replace(/[*_`#>]/g, '')
+        .replace(/\[.*?\]\(.*?\)/g, '')
+        .replace(/[\u{1F300}-\u{1FAFF}]/gu, '')
+        .trim();
+
+    const utterance = new SpeechSynthesisUtterance(clean);
+
+    // Pick a voice
     const voices = synth.getVoices();
-    const preferred = voices.find(v => v.lang.startsWith('en') && v.name.includes('Google')) ||
-                      voices.find(v => v.lang.startsWith('en-US')) ||
-                      voices.find(v => v.lang.startsWith('en'));
+    const preferred =
+        voices.find(v => v.name.includes('Google US English')) ||
+        voices.find(v => v.lang === 'en-US' && v.name.toLowerCase().includes('female')) ||
+        voices.find(v => v.lang === 'en-US') ||
+        voices.find(v => v.lang.startsWith('en'));
     if (preferred) utterance.voice = preferred;
 
     utterance.rate = 1.0;
     utterance.pitch = 1.0;
+    utterance.volume = 1.0;
+    utterance.lang = 'en-US';
 
-    utterance.onstart = () => setState('speaking');
-    utterance.onend = () => setState('idle');
-    utterance.onerror = () => setState('idle');
+    utterance.onstart = () => {
+        console.log('🔊 Speaking started');
+        setState('speaking');
+    };
+    utterance.onend = () => {
+        console.log('🔊 Speaking ended');
+        setState('idle');
+    };
+    utterance.onerror = (e) => {
+        console.error('🔊 Speech error:', e.error);
+        setState('idle');
+    };
 
-    synth.speak(utterance);
+    // ✅ FIX: wait a tick — Chrome sometimes silently drops speech if called too fast
+    setTimeout(() => {
+        synth.speak(utterance);
+        // Chrome bug: long text gets cut at 15s. This "keep alive" workaround:
+        const keepAlive = setInterval(() => {
+            if (!synth.speaking) {
+                clearInterval(keepAlive);
+                return;
+            }
+            synth.pause();
+            synth.resume();
+        }, 10000);
+    }, 100);
 }
 
 // ============================================
-// STATE MANAGEMENT
+// STATE
 // ============================================
 function setState(newState) {
     state = newState;
@@ -154,21 +231,22 @@ function setState(newState) {
 // INTERACTION
 // ============================================
 function handleOrbClick() {
+    // ✅ FIX: hard-stop any prior recognition before starting new one
+    if (recognition && state === 'listening') {
+        try { recognition.abort(); } catch(e){}
+        setState('idle');
+        return;
+    }
+
     if (state === 'speaking') {
         synth.cancel();
         setState('idle');
-        setTimeout(startListening, 150);
         return;
     }
 
     if (state === 'thinking') return;
 
-    if (state === 'listening') {
-        recognition.stop();
-        setState('idle');
-    } else {
-        startListening();
-    }
+    startListening();
 }
 
 function startListening() {
@@ -181,7 +259,11 @@ function startListening() {
     try {
         recognition.start();
     } catch (e) {
-        // already started
+        // Chrome throws if already started — abort & restart
+        try { recognition.abort(); } catch(_){}
+        setTimeout(() => {
+            try { recognition.start(); } catch(_){}
+        }, 200);
     }
 }
 
@@ -190,14 +272,17 @@ function startListening() {
 // ============================================
 function init() {
     recognition = initSpeechRecognition();
+    loadVoices();
 
-    synth.getVoices();
-    if (synth.onvoiceschanged !== undefined) {
-        synth.onvoiceschanged = () => synth.getVoices();
-    }
+    // ✅ FIX: prime speechSynthesis on first tap (Chrome blocks until user gesture)
+    document.body.addEventListener('click', () => {
+        if (!synth.speaking && synth.paused) synth.resume();
+    }, { once: true });
 
     orb.addEventListener('click', handleOrbClick);
     setState('idle');
+
+    console.log('✅ Assistant ready');
 }
 
 if (document.readyState === 'loading') {
