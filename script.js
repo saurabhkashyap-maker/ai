@@ -1,7 +1,7 @@
 // ============================================
 // CONFIGURATION — CHANGE ONLY THIS LINE
 // ============================================
-const GEMINI_API_KEY = 'PASTE_YOUR_API_KEY_HERE';
+const GEMINI_API_KEY = 'AQ.Ab8RN6LkUkRohALc1oZpd31i3OI5kog5rKkvydLRZ9KT0Ztv2Q';
 const GEMINI_MODEL = 'gemini-2.5-flash';
 
 // ============================================
